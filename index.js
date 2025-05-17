@@ -12,12 +12,22 @@ const SELECTORS = {
 
 (async () => {
   // note: 1. 사용자 입력 받기
-  const { url, keyword, winnerCount, postMin } = await inquirer.prompt([
+  const { url, keyword, winnerCount, postMin, excludeList } = await inquirer.prompt([
     { name: 'url', message: '📎 게시글 URL을 입력하세요:' },
     { name: 'keyword', message: '🔍 필터링 키워드 입력 (예: 참여):' },
     { name: 'winnerCount', message: '🎁 당첨자 수:' },
     { name: 'postMin', message: '📝 최소 게시글 수:' },
+    {
+      name: 'excludeList',
+      message: '🚫 제외할 닉네임을 쉼표(,)로 구분해서 입력하세요 (예: 홍길동,철수):',
+    },
   ]);
+  const excludeSet = new Set(
+    excludeList
+      .split(',')
+      .map(name => name.trim())
+      .filter(Boolean)
+  );
 
   const browser = await puppeteer.launch({ headless: false });
   const page = await browser.newPage();
@@ -69,12 +79,14 @@ const SELECTORS = {
   }
 
   // note: 8. 추첨
-  if (eligibleUsers.length < winnerCount) {
-    console.log(chalk.red(`❌ 조건 만족 인원 (${eligibleUsers.length}) < 당첨자 수 (${winnerCount})`));
+  const filteredEligible = _.uniq(eligibleUsers).filter(name => !excludeSet.has(name));
+
+  if (filteredEligible.length < winnerCount) {
+    console.log(chalk.red(`❌ 제외 조건 적용 후 인원이 부족합니다 (${filteredEligible.length}) < ${winnerCount}`));
     process.exit(1);
   }
 
-  const winners = _.sampleSize(_.uniq(eligibleUsers), winnerCount);
+  const winners = _.sampleSize(filteredEligible, winnerCount);
 
   // note: 9. 결과 출력
   console.log(chalk.magenta('\n🎉 최종 당첨자 🎉'));
